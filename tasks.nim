@@ -57,7 +57,7 @@ macro toTask*(e: typed{nkCall | nkCommand}): Task =
         if param[0].eqIdent("sink"):
           scratchRecList.add newIdentDefs(newIdentNode(formalParams[i][0].strVal), param[1])
           addAllNode()
-        elif param[0].eqIdent("varargs"):
+        elif param[0].eqIdent("varargs") or param[0].eqIdent("openArray"):
           let seqType = nnkBracketExpr.newTree(newIdentNode("seq"), param[1])
           scratchRecList.add newIdentDefs(newIdentNode(formalParams[i][0].strVal), seqType)
           let scratchDotExpr = newDotExpr(scratchIdent, formalParams[i][0])
@@ -83,7 +83,7 @@ macro toTask*(e: typed{nkCall | nkCommand}): Task =
         # TODO params doesn't work for static string
         callNode.add nnkExprEqExpr.newTree(formalParams[i][0], e[i])
       else:
-        error("'toTask'ed function cannot have a 'static' parameter")
+        error("not supported type kinds")
         # scratchRecList.add newIdentDefs(newIdentNode(formalParams[i][0].strVal), getType(param))
 
 
@@ -143,19 +143,51 @@ macro toTask*(e: typed{nkCall | nkCommand}): Task =
   echo result.repr
 
 when isMainModule:
-  import std/strformat
+  import std/threadpool
 
 
   block:
-    proc hello(a: int, c: varargs[int]) =
+    proc hello(a: int, c: openArray[seq[int]]) =
       echo a
       echo c
 
-    let x = 12
-    let b = toTask hello(8, 3, 4, 5, 6, x, 7)
+    let b = toTask hello(8, @[@[3], @[4], @[5], @[6], @[12], @[7]])
     b.invoke()
 
   when defined(testing):
+    block:
+      proc hello(a: int, c: openArray[int]) =
+        echo a
+        echo c
+
+      let b = toTask hello(8, @[3, 4, 5, 6, 12, 7])
+      b.invoke()
+
+    block:
+      proc hello(a: int, c: static varargs[int]) =
+        echo a
+        echo c
+
+      let b = toTask hello(8, @[3, 4, 5, 6, 12, 7])
+      b.invoke()
+
+    block:
+      proc hello(a: int, c: static varargs[int]) =
+        echo a
+        echo c
+
+      let b = toTask hello(8, [3, 4, 5, 6, 12, 7])
+      b.invoke()
+
+    block:
+      proc hello(a: int, c: varargs[int]) =
+        echo a
+        echo c
+
+      let x = 12
+      let b = toTask hello(8, 3, 4, 5, 6, x, 7)
+      b.invoke()
+
     block:
       var x = 12
 
